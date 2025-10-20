@@ -9,8 +9,10 @@ A comprehensive microservice built with Node.js and Express, featuring AWS S3 fi
    cd simple-microservice
    ```
 
-2. **Install dependencies**
+2. **Install dependencies:**
+   ```bash
    npm install
+   ```
 
 3. **Start the server:**
    ```bash
