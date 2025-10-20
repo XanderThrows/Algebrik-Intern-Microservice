@@ -1,17 +1,34 @@
 ﻿# Simple Microservice
 
-A basic microservice built with Node.js and Express.
+A comprehensive microservice built with Node.js and Express, featuring AWS S3 file management and AWS Textract document analysis capabilities.
 
 ## Quick Start
 
-1. Install dependencies:
+1. **Install dependencies:**
+   ```bash
    npm install
+   ```
 
-2. Start the server:
+2. **Configure environment:**
+   - Copy `config.env.example` to `.env`
+   - Add your AWS credentials and S3 bucket name
+
+3. **Start the server:**
+   ```bash
+   # Using full path (Windows)
+   & "C:\Program Files\nodejs\node.exe" server.js
+   
+   # Or if Node.js is in PATH
+   node server.js
+   
+   # Or using npm
    npm start
+   ```
 
-3. Or start in development mode:
-   npm run dev
+4. **Access the service:**
+   - API: http://localhost:3000
+   - Health check: http://localhost:3000/health
+   - Textract test page: http://localhost:3000/textract-test.html
 
 ## API Endpoints
 
@@ -32,6 +49,18 @@ A basic microservice built with Node.js and Express.
 - GET /api/s3/files - List all files in S3 bucket
 - DELETE /api/s3/delete/:key - Delete file from S3
 
+### AWS Textract Document Analysis
+- POST /api/textract/extract - Extract text from documents (simple OCR)
+- POST /api/textract/analyze - Advanced document analysis with forms and tables
+
+#### Textract Features:
+- **Text Extraction**: Basic OCR for simple documents
+- **Document Analysis**: Advanced analysis with form and table detection
+- **Structured Output**: Organized JSON with categorized content
+- **Entity Recognition**: Automatic detection of numbers, emails, phones, dates
+- **Layout Analysis**: Headings, paragraphs, lists, and sections
+- **Confidence Scores**: Quality metrics for extracted data
+
 ## Environment Configuration
 
 Create a `.env` file with your AWS credentials:
@@ -44,11 +73,101 @@ S3_BUCKET_NAME=your-bucket-name-here
 PORT=3000
 ```
 
-## AWS S3 Setup
+## AWS Setup
 
+### S3 Configuration
 1. Create an S3 bucket in your AWS account
 2. Create an IAM user with S3 permissions
 3. Add your credentials to the `.env` file
-4. The service will automatically use these credentials for S3 operations
+
+### Textract Configuration
+1. **IAM Permissions Required:**
+   - `AmazonTextractFullAccess` (recommended)
+   - Or custom policy with: `textract:DetectDocumentText`, `textract:AnalyzeDocument`
+
+2. **Add Textract permissions to your IAM user:**
+   - Go to AWS IAM Console → Users → Your User
+   - Add permissions → Attach policies directly
+   - Search for "AmazonTextractFullAccess" and attach
+
+## Usage Examples
+
+### Textract Text Extraction
+```bash
+curl -X POST http://localhost:3000/api/textract/extract \
+  -F "file=@document.pdf"
+```
+
+### Textract Document Analysis
+```bash
+curl -X POST http://localhost:3000/api/textract/analyze \
+  -F "file=@invoice.pdf"
+```
+
+### Response Structure
+```json
+{
+  "success": true,
+  "message": "Document analyzed successfully",
+  "document": {
+    "info": {
+      "originalName": "invoice.pdf",
+      "size": 245760,
+      "contentType": "application/pdf"
+    },
+    "statistics": {
+      "totalBlocks": 45,
+      "confidence": {
+        "average": 98.5,
+        "min": 85.2,
+        "max": 99.8
+      }
+    }
+  },
+  "extractedData": {
+    "content": {
+      "lines": [...],
+      "headings": [...],
+      "paragraphs": [...],
+      "lists": [...]
+    },
+    "entities": {
+      "numbers": [...],
+      "emails": [...],
+      "phones": [...],
+      "dates": [...]
+    },
+    "structure": {
+      "tables": [...],
+      "keyValuePairs": [...],
+      "sections": [...]
+    }
+  }
+}
+```
+
+## Supported File Formats
+
+### Textract
+- PDF
+- PNG, JPG, JPEG
+- TIFF, BMP
+
+### S3 Upload
+- Any file type
+
+## Testing
+
+1. **Web Interface**: Open `http://localhost:3000/textract-test.html`
+2. **Postman**: Use the endpoints with form-data file uploads
+3. **Sample Files**: Use `sample-document.txt` for testing
+
+## Dependencies
+
+- Express.js - Web framework
+- AWS SDK v3 - S3 and Textract integration
+- Multer - File upload handling
+- CORS, Helmet, Morgan - Security and logging
+- dotenv - Environment configuration
 
 The service runs on http://localhost:3000

@@ -1,0 +1,22 @@
+INVOICE
+
+Invoice Number: INV-2024-001
+Date: January 15, 2024
+Due Date: February 15, 2024
+
+Bill To:
+John Smith
+123 Main Street
+New York, NY 10001
+
+Description                Quantity    Price    Total
+Web Development           10 hours    $75.00   $750.00
+Database Design           5 hours     $85.00   $425.00
+Testing & QA              3 hours     $65.00   $195.00
+
+Subtotal: $1,370.00
+Tax (8.5%): $116.45
+Total Amount: $1,486.45
+
+Payment Terms: Net 30
+Thank you for your business!

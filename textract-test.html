@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Textract Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+            color: #721c24;
+        }
+        pre {
+            background: #f1f1f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .loading {
+            text-align: center;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 AWS Textract Document Analysis</h1>
+        
+        <div class="form-group">
+            <label for="fileInput">Select a document to analyze:</label>
+            <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp">
+        </div>
+        
+        <div class="form-group">
+            <button onclick="analyzeDocument()">📊 Analyze Document (Forms & Tables)</button>
+            <button onclick="extractText()">📝 Extract Text Only</button>
+        </div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function analyzeDocument() {
+            const fileInput = document.getElementById('fileInput');
+            const resultDiv = document.getElementById('result');
+            
+            if (!fileInput.files[0]) {
+                showError('Please select a file first');
+                return;
+            }
+            
+            showLoading('Analyzing document...');
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                const response = await fetch('/api/textract/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('Document Analysis Results', data);
+                } else {
+                    showError(data.error || 'Analysis failed');
+                }
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            }
+        }
+        
+        async function extractText() {
+            const fileInput = document.getElementById('fileInput');
+            const resultDiv = document.getElementById('result');
+            
+            if (!fileInput.files[0]) {
+                showError('Please select a file first');
+                return;
+            }
+            
+            showLoading('Extracting text...');
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                const response = await fetch('/api/textract/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('Text Extraction Results', data);
+                } else {
+                    showError(data.error || 'Text extraction failed');
+                }
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            }
+        }
+        
+        function showLoading(message) {
+            document.getElementById('result').innerHTML = 
+                `<div class="result loading">${message}</div>`;
+        }
+        
+        function showError(message) {
+            document.getElementById('result').innerHTML = 
+                `<div class="result error"><strong>Error:</strong> ${message}</div>`;
+        }
+        
+        function showResult(title, data) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <div class="result">
+                    <h3>${title}</h3>
+                    <h4>Document Info:</h4>
+                    <p><strong>File:</strong> ${data.documentInfo.originalName}</p>
+                    <p><strong>Size:</strong> ${data.documentInfo.size} bytes</p>
+                    <p><strong>Type:</strong> ${data.documentInfo.contentType}</p>
+                    <p><strong>Processed:</strong> ${new Date(data.documentInfo.analyzedAt || data.documentInfo.extractedAt).toLocaleString()}</p>
+                    
+                    <h4>Structured Data:</h4>
+                    <pre>${JSON.stringify(data.analysis?.structuredData || data.extraction?.structuredData, null, 2)}</pre>
+                    
+                    <h4>Full Response:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
