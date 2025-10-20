@@ -4,31 +4,18 @@ A comprehensive microservice built with Node.js and Express, featuring AWS S3 fi
 
 ## Quick Start
 
-1. **Install dependencies:**
+1. **Navigate to project directory:**
    ```bash
-   npm install
+   cd simple-microservice
    ```
 
-2. **Configure environment:**
-   - Copy `config.env.example` to `.env`
-   - Add your AWS credentials and S3 bucket name
+2. **Install dependencies**
+   npm install
 
 3. **Start the server:**
    ```bash
-   # Using full path (Windows)
-   & "C:\Program Files\nodejs\node.exe" server.js
-   
-   # Or if Node.js is in PATH
-   node server.js
-   
-   # Or using npm
    npm start
    ```
-
-4. **Access the service:**
-   - API: http://localhost:3000
-   - Health check: http://localhost:3000/health
-   - Textract test page: http://localhost:3000/textract-test.html
 
 ## API Endpoints
 
