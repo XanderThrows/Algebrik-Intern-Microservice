@@ -42,6 +42,19 @@ A comprehensive microservice built with Node.js and Express, featuring AWS S3 fi
 - POST /api/textract/extract - Extract text from documents (simple OCR)
 - POST /api/textract/analyze - Advanced document analysis with forms and tables
 
+### Google Gemini AI Document Processing
+- POST /api/gemini/call_gemini - General Gemini AI processing with custom prompt
+- POST /api/gemini/extract-resume - Extract structured information from resumes
+- POST /api/gemini/extract-document - Extract information from documents (Passport, Driver's License, Army Card)
+
+#### Gemini Features:
+- **Resume Extraction**: Structured extraction of personal info, work experience, education, skills, and more
+- **Document Extraction**: Intelligent extraction from Passports, Driver's Licenses, and Army/Military Cards
+- **Custom Prompts**: Flexible API for custom document processing tasks
+- **Structured JSON**: Returns clean, parseable JSON data
+- **Multi-format Support**: PDF, PNG, JPG, JPEG images
+- **Model**: Uses Gemini 2.0 Flash for fast and accurate results
+
 #### Textract Features:
 - **Text Extraction**: Basic OCR for simple documents
 - **Document Analysis**: Advanced analysis with form and table detection
@@ -60,6 +73,10 @@ AWS_ACCESS_KEY_ID=your-access-key-here
 AWS_SECRET_ACCESS_KEY=your-secret-access-key-here
 S3_BUCKET_NAME=your-bucket-name-here
 PORT=3000
+
+# Google Gemini API Configuration
+GEMINI_API_KEY=your-gemini-api-key-here
+GEMINI_MODEL=gemini-2.0-flash-exp
 ```
 
 ## AWS Setup
@@ -91,6 +108,37 @@ curl -X POST http://localhost:3000/api/textract/extract \
 ```bash
 curl -X POST http://localhost:3000/api/textract/analyze \
   -F "file=@invoice.pdf"
+```
+
+### Gemini Resume Extraction
+```bash
+curl -X POST http://localhost:3000/api/gemini/extract-resume \
+  -F "file=@resume.pdf"
+```
+
+### Gemini Document Extraction
+```bash
+# Passport
+curl -X POST http://localhost:3000/api/gemini/extract-document \
+  -F "file=@passport.pdf" \
+  -F "documentType=Passport"
+
+# Driver's License
+curl -X POST http://localhost:3000/api/gemini/extract-document \
+  -F "file=@license.pdf" \
+  -F "documentType=Driver's License"
+
+# Army Card
+curl -X POST http://localhost:3000/api/gemini/extract-document \
+  -F "file=@army_card.pdf" \
+  -F "documentType=Army Card"
+```
+
+### Gemini Custom Prompt
+```bash
+curl -X POST http://localhost:3000/api/gemini/call_gemini \
+  -F "file=@document.pdf" \
+  -F "prompt=Extract all dates and names from this document"
 ```
 
 ### Response Structure
@@ -155,6 +203,7 @@ curl -X POST http://localhost:3000/api/textract/analyze \
 
 - Express.js - Web framework
 - AWS SDK v3 - S3 and Textract integration
+- Google Generative AI - Gemini AI document processing
 - Multer - File upload handling
 - CORS, Helmet, Morgan - Security and logging
 - dotenv - Environment configuration

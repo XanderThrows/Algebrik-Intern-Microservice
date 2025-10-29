@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { TextractClient, DetectDocumentTextCommand, AnalyzeDocumentCommand } = require('@aws-sdk/client-textract');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const multer = require('multer');
 
 const app = express();
@@ -31,6 +32,10 @@ const textractClient = new TextractClient({
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'your-bucket-name';
 
+// Google Gemini Configuration
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'ncekjdnfwjnr44jtn4jj35n2j34');
+const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
+
 // Configure multer for file uploads (in-memory storage)
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -44,6 +49,162 @@ let users = [
   { id: 1, name: 'John Doe', email: 'john@example.com' },
   { id: 2, name: 'Jane Smith', email: 'jane@example.com' }
 ];
+
+// Gemini Utility Functions
+function getResumeExtractionPrompt() {
+  return `You are an expert at extracting structured information from resumes. Analyze the provided resume document and extract the following information in JSON format:
+
+{
+  "personalInfo": {
+    "fullName": "string",
+    "email": "string",
+    "phone": "string",
+    "address": "string",
+    "linkedIn": "string (if available)"
+  },
+  "professionalSummary": "string",
+  "workExperience": [
+    {
+      "company": "string",
+      "position": "string",
+      "startDate": "string",
+      "endDate": "string or 'Present'",
+      "responsibilities": ["array of strings"]
+    }
+  ],
+  "education": [
+    {
+      "institution": "string",
+      "degree": "string",
+      "fieldOfStudy": "string",
+      "graduationYear": "string",
+      "gpa": "string (if available)"
+    }
+  ],
+  "skills": ["array of technical skills"],
+  "certifications": [
+    {
+      "name": "string",
+      "issuingOrganization": "string",
+      "issueDate": "string",
+      "expiryDate": "string (if applicable)"
+    }
+  ],
+  "languages": ["array of languages with proficiency levels"],
+  "additionalInfo": {
+    "projects": ["array of project descriptions"],
+    "awards": ["array of awards"],
+    "volunteerWork": ["array of volunteer experiences"]
+  }
+}
+
+Be precise and only include fields that are present in the document. Return only valid JSON without any markdown formatting or extra text.`;
+}
+
+function getDocumentExtractionPrompt(documentType) {
+  return `You are an expert at extracting information from ${documentType}. Analyze the provided document and extract all relevant information in JSON format based on the document type.
+
+For Passport:
+{
+  "documentType": "Passport",
+  "fullName": "string",
+  "passportNumber": "string",
+  "nationality": "string",
+  "dateOfBirth": "string",
+  "placeOfBirth": "string",
+  "gender": "string",
+  "issueDate": "string",
+  "expiryDate": "string",
+  "issuingAuthority": "string",
+  "address": "string"
+}
+
+For Driver's License:
+{
+  "documentType": "Driver's License",
+  "fullName": "string",
+  "licenseNumber": "string",
+  "dateOfBirth": "string",
+  "address": "string",
+  "issueDate": "string",
+  "expiryDate": "string",
+  "licenseClass": "string",
+  "restrictions": "string",
+  "state": "string"
+}
+
+For Army/Military Card:
+{
+  "documentType": "Army Card",
+  "fullName": "string",
+  "serviceNumber": "string",
+  "rank": "string",
+  "branch": "string",
+  "dateOfBirth": "string",
+  "enlistmentDate": "string",
+  "dischargeDate": "string (if applicable)",
+  "unit": "string",
+  "bloodType": "string (if available)"
+}
+
+Be precise and only include fields that are present in the document. Return only valid JSON without any markdown formatting or extra text.`;
+}
+
+async function callGemini(file, prompt) {
+  try {
+    const model = genAI.getGenerativeModel({ model: geminiModel });
+    
+    // Convert file buffer to base64
+    const base64Data = file.buffer.toString('base64');
+    
+    // Determine MIME type
+    let mimeType = file.mimetype;
+    if (mimeType === 'application/pdf') {
+      mimeType = 'application/pdf';
+    } else if (mimeType.startsWith('image/')) {
+      mimeType = file.mimetype;
+    }
+    
+    // Prepare the parts for the model
+    const parts = [
+      { text: prompt },
+      {
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
+        }
+      }
+    ];
+    
+    // Generate content
+    const result = await model.generateContent(parts);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Try to parse as JSON
+    let jsonData;
+    try {
+      // Remove markdown code blocks if present
+      const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      jsonData = JSON.parse(cleanText);
+    } catch (parseError) {
+      // If not JSON, wrap in a message field
+      jsonData = {
+        extractedText: text,
+        rawResponse: text
+      };
+    }
+    
+    return {
+      success: true,
+      data: jsonData,
+      rawResponse: text
+    };
+  } catch (error) {
+    console.error('Gemini API error:', error);
+    throw error;
+  }
+}
 
 // Middleware
 app.use(helmet());
@@ -79,6 +240,11 @@ app.get('/', (req, res) => {
       textract: {
         analyze: '/api/textract/analyze',
         extract: '/api/textract/extract'
+      },
+      gemini: {
+        call: '/api/gemini/call_gemini',
+        extractResume: '/api/gemini/extract-resume',
+        extractDocument: '/api/gemini/extract-document'
       }
     }
   });
@@ -616,6 +782,131 @@ app.post('/api/textract/extract', upload.single('file'), async (req, res) => {
     console.error('Textract extraction error:', error);
     res.status(500).json({ 
       error: 'Failed to extract text',
+      details: error.message 
+    });
+  }
+});
+
+// Gemini API routes
+// Main Gemini call endpoint
+app.post('/api/gemini/call_gemini', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    console.log('Calling Gemini API...');
+    
+    const result = await callGemini(req.file, prompt);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Document processed successfully with Gemini',
+      request: {
+        timestamp: new Date().toISOString(),
+        endpoint: '/api/gemini/call_gemini',
+        method: 'POST'
+      },
+      document: {
+        originalName: req.file.originalname,
+        size: req.file.size,
+        contentType: req.file.mimetype
+      },
+      response: result.data,
+      rawResponse: result.rawResponse
+    });
+  } catch (error) {
+    console.error('Gemini API error:', error);
+    res.status(500).json({ 
+      error: 'Failed to process document with Gemini',
+      details: error.message 
+    });
+  }
+});
+
+// Resume extraction endpoint
+app.post('/api/gemini/extract-resume', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log('Extracting resume information with Gemini...');
+    
+    const prompt = getResumeExtractionPrompt();
+    const result = await callGemini(req.file, prompt);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Resume extracted successfully',
+      request: {
+        timestamp: new Date().toISOString(),
+        endpoint: '/api/gemini/extract-resume',
+        method: 'POST'
+      },
+      document: {
+        originalName: req.file.originalname,
+        size: req.file.size,
+        contentType: req.file.mimetype
+      },
+      extractedData: result.data
+    });
+  } catch (error) {
+    console.error('Resume extraction error:', error);
+    res.status(500).json({ 
+      error: 'Failed to extract resume',
+      details: error.message 
+    });
+  }
+});
+
+// Document extraction endpoint (Passport, Driver's License, Army Card)
+app.post('/api/gemini/extract-document', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const { documentType = 'Passport' } = req.body; // Default to Passport
+    const allowedTypes = ['Passport', "Driver's License", 'Army Card', 'Military Card'];
+    
+    if (!allowedTypes.includes(documentType)) {
+      return res.status(400).json({ 
+        error: 'Invalid document type',
+        allowedTypes: allowedTypes
+      });
+    }
+
+    console.log(`Extracting ${documentType} information with Gemini...`);
+    
+    const prompt = getDocumentExtractionPrompt(documentType);
+    const result = await callGemini(req.file, prompt);
+    
+    res.status(200).json({
+      success: true,
+      message: `${documentType} extracted successfully`,
+      request: {
+        timestamp: new Date().toISOString(),
+        endpoint: '/api/gemini/extract-document',
+        method: 'POST',
+        documentType: documentType
+      },
+      document: {
+        originalName: req.file.originalname,
+        size: req.file.size,
+        contentType: req.file.mimetype
+      },
+      extractedData: result.data
+    });
+  } catch (error) {
+    console.error('Document extraction error:', error);
+    res.status(500).json({ 
+      error: 'Failed to extract document',
       details: error.message 
     });
   }
