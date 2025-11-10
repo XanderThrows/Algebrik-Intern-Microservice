@@ -245,6 +245,9 @@ app.get('/', (req, res) => {
         call: '/api/gemini/call_gemini',
         extractResume: '/api/gemini/extract-resume',
         extractDocument: '/api/gemini/extract-document'
+      },
+      math: {
+        verifySum: '/api/math/verify-sum'
       }
     }
   });
@@ -314,6 +317,67 @@ app.delete('/api/users/:id', (req, res) => {
   
   const deletedUser = users.splice(userIndex, 1)[0];
   res.json({ message: 'User deleted successfully', user: deletedUser });
+});
+
+// Math API routes
+// Verify sum of two numbers
+app.post('/api/math/verify-sum', (req, res) => {
+  try {
+    const { num1, num2, expectedResult } = req.body;
+    
+    // Validate input
+    if (num1 === undefined || num2 === undefined || expectedResult === undefined) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        required: ['num1', 'num2', 'expectedResult']
+      });
+    }
+    
+    // Validate that all inputs are numbers
+    if (typeof num1 !== 'number' || typeof num2 !== 'number' || typeof expectedResult !== 'number') {
+      return res.status(400).json({ 
+        error: 'All fields must be numbers',
+        received: {
+          num1: typeof num1,
+          num2: typeof num2,
+          expectedResult: typeof expectedResult
+        }
+      });
+    }
+    
+    // Check for NaN or Infinity
+    if (isNaN(num1) || isNaN(num2) || isNaN(expectedResult) || 
+        !isFinite(num1) || !isFinite(num2) || !isFinite(expectedResult)) {
+      return res.status(400).json({ 
+        error: 'Invalid number values (NaN or Infinity not allowed)'
+      });
+    }
+    
+    // Calculate the actual sum
+    const actualSum = num1 + num2;
+    
+    // Verify if the sum matches the expected result
+    // Using a small epsilon for floating point comparison
+    const epsilon = 1e-10;
+    const isCorrect = Math.abs(actualSum - expectedResult) < epsilon;
+    
+    res.json({
+      correct: isCorrect,
+      num1: num1,
+      num2: num2,
+      actualSum: actualSum,
+      expectedResult: expectedResult,
+      message: isCorrect 
+        ? `Correct! ${num1} + ${num2} = ${actualSum}` 
+        : `Incorrect! ${num1} + ${num2} = ${actualSum}, but expected ${expectedResult}`
+    });
+  } catch (error) {
+    console.error('Math verification error:', error);
+    res.status(500).json({ 
+      error: 'Failed to verify sum',
+      details: error.message 
+    });
+  }
 });
 
 // S3 API routes
@@ -923,11 +987,13 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(` Simple Microservice running on port ${PORT}`);
-  console.log(` Health check: http://localhost:${PORT}/health`);
-  console.log(` API docs: http://localhost:${PORT}/`);
-});
+// Start server only if this file is run directly (not when imported for testing)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(` Simple Microservice running on port ${PORT}`);
+    console.log(` Health check: http://localhost:${PORT}/health`);
+    console.log(` API docs: http://localhost:${PORT}/`);
+  });
+}
 
 module.exports = app;
